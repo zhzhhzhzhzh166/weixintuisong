@@ -33,32 +33,49 @@ def get_access_token():
  
 def get_weather(region):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/103.0.0.0 Safari/537.36'
     }
     key = config["weather_key"]
-    region_url = "https://geoapi.qweather.com/v2/city/lookup?location={}&key={}".format(region, key)
-    response = get(region_url, headers=headers).json()
-    if response["code"] == "404":
-        print("推送消息失败，请检查地区名是否有误！")
-        os.system("pause")
+    
+    # 第一步：通过城市名称查找 location_id
+    region_url = f"https://geoapi.qweather.com/v2/city/lookup?location={region}&key={key}"
+    response = get(region_url, headers=headers)
+    print("[DEBUG] 城市查询响应状态：", response.status_code)
+    print("[DEBUG] 城市查询响应内容：", response.text[:200])
+    try:
+        region_data = response.json()
+    except Exception as e:
+        print("城市查询解析失败：", e)
         sys.exit(1)
-    elif response["code"] == "401":
-        print("推送消息失败，请检查和风天气key是否正确！")
-        os.system("pause")
+
+    if region_data.get("code") != "200":
+        print("城市查询失败，错误代码：", region_data.get("code"))
         sys.exit(1)
-    else:
-        # 获取地区的location--id
-        location_id = response["location"][0]["id"]
-    weather_url = "https://devapi.qweather.com/v7/weather/now?location={}&key={}".format(location_id, key)
-    response = get(weather_url, headers=headers).json()
-    # 天气
-    weather = response["now"]["text"]
-    # 当前温度
-    temp = response["now"]["temp"] + u"\N{DEGREE SIGN}" + "C"
-    # 风向
-    wind_dir = response["now"]["windDir"]
+    
+    location_id = region_data["location"][0]["id"]
+
+    # 第二步：通过 location_id 获取天气
+    weather_url = f"https://devapi.qweather.com/v7/weather/now?location={location_id}&key={key}"
+    response = get(weather_url, headers=headers)
+    print("[DEBUG] 天气查询响应状态：", response.status_code)
+    print("[DEBUG] 天气查询响应内容：", response.text[:200])
+    try:
+        weather_data = response.json()
+    except Exception as e:
+        print("天气查询解析失败：", e)
+        sys.exit(1)
+
+    if weather_data.get("code") != "200":
+        print("天气接口请求失败，错误代码：", weather_data.get("code"))
+        sys.exit(1)
+
+    # 提取天气信息
+    now = weather_data["now"]
+    weather = now["text"]
+    temp = now["temp"] + u"\N{DEGREE SIGN}" + "C"
+    wind_dir = now["windDir"]
     return weather, temp, wind_dir
+
  
  
 def get_birthday(birthday, year, today):
